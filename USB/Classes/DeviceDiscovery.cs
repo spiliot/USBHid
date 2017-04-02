@@ -10,15 +10,13 @@ namespace UsbHid.USB.Classes
     {
         public static bool FindHidDevices(ref string[] listOfDevicePathNames, ref int numberOfDevicesFound)
         {
-            // Initialise the internal variables required for performing the search
             var bufferSize = 0;
             var detailDataBuffer = IntPtr.Zero;
-            bool deviceFound;
             var deviceInfoSet = new IntPtr();
-            int listIndex;
+            int listIndex = 0;
             var deviceInterfaceData = new SpDeviceInterfaceData();
 
-            // Get the required GUID
+            // Get the required HID class GUID
             var systemHidGuid = new Guid();
             Hid.HidD_GetHidGuid(ref systemHidGuid);
 
@@ -27,11 +25,6 @@ namespace UsbHid.USB.Classes
                 // Here we populate a list of plugged-in devices matching our class GUID (DIGCF_PRESENT specifies that the list
                 // should only contain devices which are plugged in)
                 deviceInfoSet = SetupApi.SetupDiGetClassDevs(ref systemHidGuid, IntPtr.Zero, IntPtr.Zero, Constants.DigcfPresent | Constants.DigcfDeviceinterface);
-
-                // Reset the deviceFound flag and the memberIndex counter
-                deviceFound = false;
-                listIndex = 0;
-
                 deviceInterfaceData.cbSize = Marshal.SizeOf(deviceInterfaceData);
 
                 // Look through the retrieved list of class GUIDs looking for a match on our interface GUID
@@ -68,7 +61,6 @@ namespace UsbHid.USB.Classes
                     // Get the String containing the devicePathName.
                     listOfDevicePathNames[listIndex] = Marshal.PtrToStringAuto(pDevicePathName);
 
-                    deviceFound = true;
                     listIndex += 1;
                 }
             }
@@ -84,14 +76,13 @@ namespace UsbHid.USB.Classes
                 SetupApi.SetupDiDestroyDeviceInfoList(deviceInfoSet);
             }
 
-            if (deviceFound)
+            if (listIndex == 0)
             {
-                Debug.WriteLine("usbGenericHidCommunication:findHidDevices() -> Found {0} devices with matching GUID", listIndex - 1);
-                numberOfDevicesFound = listIndex - 2;
+                return false;
             }
-            else Debug.WriteLine("usbGenericHidCommunication:findHidDevices() -> No matching devices found");
 
-            return deviceFound;
+            numberOfDevicesFound = listIndex;
+            return true;
         }
 
         public static bool FindTargetDevice(ref DeviceInformationStructure deviceInformation)
