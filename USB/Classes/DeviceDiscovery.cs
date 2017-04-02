@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using UsbHid.USB.Classes.DllWrappers;
@@ -8,8 +9,9 @@ namespace UsbHid.USB.Classes
 {
     public static class DeviceDiscovery
     {
-        public static int FindHidDevices(ref string[] listOfDevicePathNames)
+        public static List<string> FindHidDevices()
         {
+            var listOfDevicePathNames = new List<string>();
             var bufferSize = 0;
             var detailDataBuffer = IntPtr.Zero;
             var deviceInfoSet = new IntPtr();
@@ -61,7 +63,7 @@ namespace UsbHid.USB.Classes
                     var pDevicePathName = new IntPtr(detailDataBuffer.ToInt32() + 4);
 
                     // Get the String containing the devicePathName.
-                    listOfDevicePathNames[listIndex] = Marshal.PtrToStringAuto(pDevicePathName);
+                    listOfDevicePathNames.Add(Marshal.PtrToStringAuto(pDevicePathName));
 
                     listIndex++;
                 }
@@ -69,7 +71,7 @@ namespace UsbHid.USB.Classes
             catch (Exception)
             {
                 // Something went badly wrong...
-                return 0;
+                listOfDevicePathNames.Clear();
             }
             finally
             {
@@ -78,25 +80,23 @@ namespace UsbHid.USB.Classes
                 SetupApi.SetupDiDestroyDeviceInfoList(deviceInfoSet);
             }
 
-            return listIndex;
+            return listOfDevicePathNames;
         }
 
         public static bool FindTargetDevice(ref DeviceInformationStructure deviceInformation)
         {
-            var listOfDevicePathNames = new String[128]; // 128 is the maximum number of USB devices allowed on a single host
-
             deviceInformation.IsDeviceAttached = false;
 
             // Get all the devices with the correct HID GUID
-            int numberOfDevicesFound = FindHidDevices(ref listOfDevicePathNames);
+            List<string> devicesFound = FindHidDevices();
 
-            if (numberOfDevicesFound == 0) return false;
+            if (devicesFound.Count == 0) return false;
 
-            for (int listIndex = 0; listIndex <= numberOfDevicesFound; listIndex++)
+            foreach (string devicepath in devicesFound)
             {
                 try
                 {
-                    deviceInformation.HidHandle = Kernel32.CreateFile(listOfDevicePathNames[listIndex], 0, Constants.FileShareRead | Constants.FileShareWrite, IntPtr.Zero, Constants.OpenExisting, 0, 0);
+                    deviceInformation.HidHandle = Kernel32.CreateFile(devicepath, 0, Constants.FileShareRead | Constants.FileShareWrite, IntPtr.Zero, Constants.OpenExisting, 0, 0);
 
                     if (deviceInformation.HidHandle.IsInvalid) continue;
 
@@ -120,7 +120,7 @@ namespace UsbHid.USB.Classes
                     // Matching device found
 
                     // Store the device's pathname in the device information
-                    deviceInformation.DevicePathName = listOfDevicePathNames[listIndex];
+                    deviceInformation.DevicePathName = devicepath;
 
                     // We found a matching device then we need discover more details about the attached device
                     // and then open read and write handles to the device to allow communication
