@@ -1,0 +1,82 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.30703</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{83BC9702-4192-4654-B359-14CBD71D656E}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>UsbHid</RootNamespace>
+    <AssemblyName>UsbHid</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UsbHidDevice.cs" />
+    <Compile Include="USB\Classes\Constants.cs" />
+    <Compile Include="USB\Classes\DeviceChangeNotifier.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="USB\Classes\DeviceCommunication.cs" />
+    <Compile Include="USB\Classes\DeviceDiscovery.cs" />
+    <Compile Include="USB\Classes\DllWrappers\Hid.cs" />
+    <Compile Include="USB\Classes\DllWrappers\Kernel32.cs" />
+    <Compile Include="USB\Classes\DllWrappers\SetupApi.cs" />
+    <Compile Include="USB\Classes\DllWrappers\User32.cs" />
+    <Compile Include="USB\Classes\Messaging\CommandMessage.cs" />
+    <Compile Include="USB\Classes\Messaging\IMesage.cs" />
+    <Compile Include="USB\Structures\DevBroadcastDeviceinterface.cs" />
+    <Compile Include="USB\Structures\DevBroadcastDeviceinterface1.cs" />
+    <Compile Include="USB\Structures\DevBroadcastHdr.cs" />
+    <Compile Include="USB\Structures\DeviceInformationStructure.cs" />
+    <Compile Include="USB\Structures\HiddAttributes.cs" />
+    <Compile Include="USB\Structures\HidpCaps.cs" />
+    <Compile Include="USB\Structures\HidpReportType.cs" />
+    <Compile Include="USB\Structures\HidpValueCaps.cs" />
+    <Compile Include="USB\Structures\NotRange.cs" />
+    <Compile Include="USB\Structures\Overlapped.cs" />
+    <Compile Include="USB\Structures\PspDeviceInterfaceDetailData.cs" />
+    <Compile Include="USB\Structures\Range.cs" />
+    <Compile Include="USB\Structures\SecurityAttributes.cs" />
+    <Compile Include="USB\Structures\SpDeviceInterfaceData.cs" />
+    <Compile Include="USB\Structures\SyncObjT.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="USB\Classes\DeviceChangeNotifier.resx">
+      <DependentUpon>DeviceChangeNotifier.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
