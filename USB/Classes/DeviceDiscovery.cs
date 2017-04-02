@@ -15,7 +15,6 @@ namespace UsbHid.USB.Classes
             var detailDataBuffer = IntPtr.Zero;
             bool deviceFound;
             var deviceInfoSet = new IntPtr();
-            var lastDevice = false;
             int listIndex;
             var deviceInterfaceData = new SpDeviceInterfaceData();
 
@@ -36,52 +35,42 @@ namespace UsbHid.USB.Classes
                 deviceInterfaceData.cbSize = Marshal.SizeOf(deviceInterfaceData);
 
                 // Look through the retrieved list of class GUIDs looking for a match on our interface GUID
-                do
+                while (SetupApi.SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref systemHidGuid, listIndex, ref deviceInterfaceData))
                 {
-                    var success = SetupApi.SetupDiEnumDeviceInterfaces(deviceInfoSet,IntPtr.Zero,ref systemHidGuid, listIndex, ref deviceInterfaceData);
+                    // The target device has been found, now we need to retrieve the device path so we can open
+                    // the read and write handles required for USB communication
 
-                    if (!success)
-                    {
-                        lastDevice = true;
-                    }
-                    else
-                    {
-                        // The target device has been found, now we need to retrieve the device path so we can open
-                        // the read and write handles required for USB communication
+                    // First call is just to get the required buffer size for the real request
+                    SetupApi.SetupDiGetDeviceInterfaceDetail
+                        (deviceInfoSet,
+                            ref deviceInterfaceData,
+                            IntPtr.Zero,
+                            0,
+                            ref bufferSize,
+                            IntPtr.Zero);
 
-                        // First call is just to get the required buffer size for the real request
-                        SetupApi.SetupDiGetDeviceInterfaceDetail
-                            (deviceInfoSet,
-                             ref deviceInterfaceData,
-                             IntPtr.Zero,
-                             0,
-                             ref bufferSize,
-                             IntPtr.Zero);
+                    // Allocate some memory for the buffer
+                    detailDataBuffer = Marshal.AllocHGlobal(bufferSize);
+                    Marshal.WriteInt32(detailDataBuffer, (IntPtr.Size == 4) ? (4 + Marshal.SystemDefaultCharSize) : 8);
 
-                        // Allocate some memory for the buffer
-                        detailDataBuffer = Marshal.AllocHGlobal(bufferSize);
-                        Marshal.WriteInt32(detailDataBuffer, (IntPtr.Size == 4) ? (4 + Marshal.SystemDefaultCharSize) : 8);
+                    // Second call gets the detailed data buffer
+                    SetupApi.SetupDiGetDeviceInterfaceDetail
+                        (deviceInfoSet,
+                            ref deviceInterfaceData,
+                            detailDataBuffer,
+                            bufferSize,
+                            ref bufferSize,
+                            IntPtr.Zero);
 
-                        // Second call gets the detailed data buffer
-                        SetupApi.SetupDiGetDeviceInterfaceDetail
-                            (deviceInfoSet,
-                             ref deviceInterfaceData,
-                             detailDataBuffer,
-                             bufferSize,
-                             ref bufferSize,
-                             IntPtr.Zero);
+                    // Skip over cbsize (4 bytes) to get the address of the devicePathName.
+                    var pDevicePathName = new IntPtr(detailDataBuffer.ToInt32() + 4);
 
-                        // Skip over cbsize (4 bytes) to get the address of the devicePathName.
-                        var pDevicePathName = new IntPtr(detailDataBuffer.ToInt32() + 4);
+                    // Get the String containing the devicePathName.
+                    listOfDevicePathNames[listIndex] = Marshal.PtrToStringAuto(pDevicePathName);
 
-                        // Get the String containing the devicePathName.
-                        listOfDevicePathNames[listIndex] = Marshal.PtrToStringAuto(pDevicePathName);
-
-                        deviceFound = true;
-                    }
-                    listIndex = listIndex + 1;
+                    deviceFound = true;
+                    listIndex += 1;
                 }
-                while (lastDevice != true);
             }
             catch (Exception)
             {
