@@ -92,7 +92,6 @@ namespace UsbHid.USB.Classes
             try
             {
                 // Reset the device detection flag
-                var isDeviceDetected = false;
                 deviceInformation.IsDeviceAttached = false;
 
                 // Get all the devices with the correct HID GUID
@@ -100,91 +99,76 @@ namespace UsbHid.USB.Classes
 
                 if (!deviceFoundByGuid) return false;
 
-                var listIndex = 0;
-
-                do
+                for (int listIndex = 0; listIndex <= numberOfDevicesFound; listIndex++)
                 {
                     deviceInformation.HidHandle = Kernel32.CreateFile(listOfDevicePathNames[listIndex], 0, Constants.FileShareRead | Constants.FileShareWrite, IntPtr.Zero, Constants.OpenExisting, 0, 0);
 
-                    if (!deviceInformation.HidHandle.IsInvalid)
+                    if (deviceInformation.HidHandle.IsInvalid) continue;
+                    deviceInformation.Attributes.Size = Marshal.SizeOf(deviceInformation.Attributes);
+
+                    if (!Hid.HidD_GetAttributes(deviceInformation.HidHandle, ref deviceInformation.Attributes))
                     {
-                        deviceInformation.Attributes.Size = Marshal.SizeOf(deviceInformation.Attributes);
-                        var success = Hid.HidD_GetAttributes(deviceInformation.HidHandle, ref deviceInformation.Attributes);
-
-                        if (!success)
-                        {
-                            //  Something went rapidly south...  give up!
-                            Debug.WriteLine("usbGenericHidCommunication:findTargetDevice() -> Something bad happened - couldn't fill the HIDD_ATTRIBUTES, giving up!");
-                            deviceInformation.HidHandle.Close();
-                            continue;
-                        }
-
-                        //  Do the VID and PID of the device match our target device?
-                        if ((deviceInformation.Attributes.VendorID == deviceInformation.TargetVendorId) &&
-                            (deviceInformation.Attributes.ProductID == deviceInformation.TargetProductId))
-                        {
-                            // Matching device found
-                            isDeviceDetected = true;
-
-                            // Store the device's pathname in the device information
-                            deviceInformation.DevicePathName = listOfDevicePathNames[listIndex];
-                            break;
-                        }
-                        // Wrong device, close the handle
                         deviceInformation.HidHandle.Close();
+                        continue;
                     }
 
-                    //  Move to the next device, or quit if there are no more devices to examine
-                    listIndex++;
+                    //  Do the VID and PID of the device match our target device?
+                    if ((deviceInformation.Attributes.VendorID != deviceInformation.TargetVendorId) ||
+                        (deviceInformation.Attributes.ProductID != deviceInformation.TargetProductId))
+                    {
+                        // Wrong device, close the handle
+                        deviceInformation.HidHandle.Close();
+                        continue;
+                    }
+
+                    // Matching device found
+
+                    // Store the device's pathname in the device information
+                    deviceInformation.DevicePathName = listOfDevicePathNames[listIndex];
+
+                    // We found a matching device then we need discover more details about the attached device
+                    // and then open read and write handles to the device to allow communication
+
+                    // Query the HID device's capabilities (primarily we are only really interested in the 
+                    // input and output report byte lengths as this allows us to validate information sent
+                    // to and from the device does not exceed the devices capabilities.
+                    QueryDeviceCapabilities(ref deviceInformation);
+
+                    // Open the readHandle to the device
+                    deviceInformation.ReadHandle = Kernel32.CreateFile(
+                        deviceInformation.DevicePathName,
+                        Constants.GenericRead,
+                        Constants.FileShareRead | Constants.FileShareWrite,
+                        IntPtr.Zero, Constants.OpenExisting,
+                        Constants.FileFlagOverlapped,
+                        0);
+
+                    // Did we open the readHandle successfully?
+                    if (deviceInformation.ReadHandle.IsInvalid)
+                    {
+                        deviceInformation.ReadHandle.Close();
+                        return false;
+                    }
+
+                    deviceInformation.WriteHandle = Kernel32.CreateFile(
+                        deviceInformation.DevicePathName,
+                        Constants.GenericWrite,
+                        Constants.FileShareRead | Constants.FileShareWrite,
+                        IntPtr.Zero,
+                        Constants.OpenExisting, 0, 0);
+
+                    // Did we open the writeHandle successfully?
+                    if (deviceInformation.WriteHandle.IsInvalid)
+                    {
+                        deviceInformation.WriteHandle.Close();
+                        return false;
+                    }
+
+                    // Device is now discovered and ready for use, update the status
+                    deviceInformation.IsDeviceAttached = true;
+                    return true;
                 }
-                while (!(listIndex == numberOfDevicesFound + 1));
-
-                if (!isDeviceDetected) return false;
-
-                // We found a matching device then we need discover more details about the attached device
-                // and then open read and write handles to the device to allow communication
-
-                // Query the HID device's capabilities (primarily we are only really interested in the 
-                // input and output report byte lengths as this allows us to validate information sent
-                // to and from the device does not exceed the devices capabilities.
-                //
-                // We could determine the 'type' of HID device here too, but since this class is only
-                // for generic HID communication we don't care...
-                QueryDeviceCapabilities(ref deviceInformation);
-
-                // Open the readHandle to the device
-                deviceInformation.ReadHandle = Kernel32.CreateFile(
-                    deviceInformation.DevicePathName,
-                    Constants.GenericRead,
-                    Constants.FileShareRead | Constants.FileShareWrite,
-                    IntPtr.Zero, Constants.OpenExisting,
-                    Constants.FileFlagOverlapped,
-                    0);
-
-                // Did we open the readHandle successfully?
-                if (deviceInformation.ReadHandle.IsInvalid)
-                {
-                    return false;
-                }
-                
-                deviceInformation.WriteHandle = Kernel32.CreateFile(
-                    deviceInformation.DevicePathName,
-                    Constants.GenericWrite,
-                    Constants.FileShareRead | Constants.FileShareWrite,
-                    IntPtr.Zero,
-                    Constants.OpenExisting, 0, 0);
-
-                // Did we open the writeHandle successfully?
-                if (deviceInformation.WriteHandle.IsInvalid)
-                {
-                    // Attempt to close the writeHandle
-                    deviceInformation.WriteHandle.Close();
-                    return false;
-                }
-                    
-                // Device is now discovered and ready for use, update the status
-                deviceInformation.IsDeviceAttached = true;
-                return true;
+                return false;
             }
             catch (Exception)
             {
