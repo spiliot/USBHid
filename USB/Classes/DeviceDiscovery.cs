@@ -85,21 +85,21 @@ namespace UsbHid.USB.Classes
         {
             var listOfDevicePathNames = new String[128]; // 128 is the maximum number of USB devices allowed on a single host
 
-            try
+            deviceInformation.IsDeviceAttached = false;
+
+            // Get all the devices with the correct HID GUID
+            int numberOfDevicesFound = FindHidDevices(ref listOfDevicePathNames);
+
+            if (numberOfDevicesFound == 0) return false;
+
+            for (int listIndex = 0; listIndex <= numberOfDevicesFound; listIndex++)
             {
-                // Reset the device detection flag
-                deviceInformation.IsDeviceAttached = false;
-
-                // Get all the devices with the correct HID GUID
-                int numberOfDevicesFound = FindHidDevices(ref listOfDevicePathNames);
-
-                if (numberOfDevicesFound == 0) return false;
-
-                for (int listIndex = 0; listIndex <= numberOfDevicesFound; listIndex++)
+                try
                 {
                     deviceInformation.HidHandle = Kernel32.CreateFile(listOfDevicePathNames[listIndex], 0, Constants.FileShareRead | Constants.FileShareWrite, IntPtr.Zero, Constants.OpenExisting, 0, 0);
 
                     if (deviceInformation.HidHandle.IsInvalid) continue;
+
                     deviceInformation.Attributes.Size = Marshal.SizeOf(deviceInformation.Attributes);
 
                     if (!Hid.HidD_GetAttributes(deviceInformation.HidHandle, ref deviceInformation.Attributes))
@@ -164,12 +164,12 @@ namespace UsbHid.USB.Classes
                     deviceInformation.IsDeviceAttached = true;
                     return true;
                 }
-                return false;
+                catch (Exception)
+                {
+                    return false;
+                }
             }
-            catch (Exception)
-            {
-                return false;
-            }
+            return false;
         }
 
         public static void QueryDeviceCapabilities(ref DeviceInformationStructure deviceInformation)
