@@ -111,36 +111,33 @@ namespace UsbHid.USB.Classes
                         deviceInformation.Attributes.Size = Marshal.SizeOf(deviceInformation.Attributes);
                         var success = Hid.HidD_GetAttributes(deviceInformation.HidHandle, ref deviceInformation.Attributes);
 
-                        if (success)
-                        {
-                            //  Do the VID and PID of the device match our target device?
-                            if ((deviceInformation.Attributes.VendorID == deviceInformation.TargetVendorId) &&
-                                (deviceInformation.Attributes.ProductID == deviceInformation.TargetProductId))
-                            {
-                                // Matching device found
-                                isDeviceDetected = true;
-
-                                // Store the device's pathname in the device information
-                                deviceInformation.DevicePathName = listOfDevicePathNames[listIndex];
-                            }
-                            else
-                            {
-                                // Wrong device, close the handle
-                                deviceInformation.HidHandle.Close();
-                            }
-                        }
-                        else
+                        if (!success)
                         {
                             //  Something went rapidly south...  give up!
                             Debug.WriteLine("usbGenericHidCommunication:findTargetDevice() -> Something bad happened - couldn't fill the HIDD_ATTRIBUTES, giving up!");
                             deviceInformation.HidHandle.Close();
+                            continue;
                         }
+
+                        //  Do the VID and PID of the device match our target device?
+                        if ((deviceInformation.Attributes.VendorID == deviceInformation.TargetVendorId) &&
+                            (deviceInformation.Attributes.ProductID == deviceInformation.TargetProductId))
+                        {
+                            // Matching device found
+                            isDeviceDetected = true;
+
+                            // Store the device's pathname in the device information
+                            deviceInformation.DevicePathName = listOfDevicePathNames[listIndex];
+                            break;
+                        }
+                        // Wrong device, close the handle
+                        deviceInformation.HidHandle.Close();
                     }
 
                     //  Move to the next device, or quit if there are no more devices to examine
                     listIndex++;
                 }
-                while (!((isDeviceDetected || (listIndex == numberOfDevicesFound + 1))));
+                while (!(listIndex == numberOfDevicesFound + 1));
 
                 if (!isDeviceDetected) return false;
 
