@@ -74,22 +74,14 @@ namespace UsbHid.USB.Classes
             }
             catch (Exception)
             {
-                // Something went badly wrong... output some debug and return false to indicated device discovery failure
+                // Something went badly wrong...
                 return false;
             }
             finally
             {
-                // Clean up the unmanaged memory allocations
-                if (detailDataBuffer != IntPtr.Zero)
-                {
-                    // Free the memory allocated previously by AllocHGlobal.
-                    Marshal.FreeHGlobal(detailDataBuffer);
-                }
-
-                if (deviceInfoSet != IntPtr.Zero)
-                {
-                    SetupApi.SetupDiDestroyDeviceInfoList(deviceInfoSet);
-                }
+                // Clean up the unmanaged memory allocations and free resources held by the windows API
+                Marshal.FreeHGlobal(detailDataBuffer);
+                SetupApi.SetupDiDestroyDeviceInfoList(deviceInfoSet);
             }
 
             if (deviceFound)
