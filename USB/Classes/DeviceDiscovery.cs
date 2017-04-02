@@ -174,12 +174,8 @@ namespace UsbHid.USB.Classes
 
             try
             {
-                // Get the preparsed data from the HID driver
                 Hid.HidD_GetPreparsedData(deviceInformation.HidHandle, ref preparsedData);
-
-                // Get the HID device's capabilities
-                var result = Hid.HidP_GetCaps(preparsedData, ref deviceInformation.Capabilities);
-                if ((result == 0)) return;
+                Hid.HidP_GetCaps(preparsedData, ref deviceInformation.Capabilities);
             }
             catch (Exception)
             {
