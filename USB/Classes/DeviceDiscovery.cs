@@ -8,7 +8,7 @@ namespace UsbHid.USB.Classes
 {
     public static class DeviceDiscovery
     {
-        public static bool FindHidDevices(ref string[] listOfDevicePathNames, ref int numberOfDevicesFound)
+        public static int FindHidDevices(ref string[] listOfDevicePathNames)
         {
             var bufferSize = 0;
             var detailDataBuffer = IntPtr.Zero;
@@ -63,13 +63,13 @@ namespace UsbHid.USB.Classes
                     // Get the String containing the devicePathName.
                     listOfDevicePathNames[listIndex] = Marshal.PtrToStringAuto(pDevicePathName);
 
-                    listIndex += 1;
+                    listIndex++;
                 }
             }
             catch (Exception)
             {
                 // Something went badly wrong...
-                return false;
+                return 0;
             }
             finally
             {
@@ -78,16 +78,12 @@ namespace UsbHid.USB.Classes
                 SetupApi.SetupDiDestroyDeviceInfoList(deviceInfoSet);
             }
 
-            if (listIndex == 0) return false;
-
-            numberOfDevicesFound = listIndex;
-            return true;
+            return listIndex;
         }
 
         public static bool FindTargetDevice(ref DeviceInformationStructure deviceInformation)
         {
             var listOfDevicePathNames = new String[128]; // 128 is the maximum number of USB devices allowed on a single host
-            var numberOfDevicesFound = 0;
 
             try
             {
@@ -95,9 +91,9 @@ namespace UsbHid.USB.Classes
                 deviceInformation.IsDeviceAttached = false;
 
                 // Get all the devices with the correct HID GUID
-                var deviceFoundByGuid = FindHidDevices(ref listOfDevicePathNames, ref numberOfDevicesFound);
+                int numberOfDevicesFound = FindHidDevices(ref listOfDevicePathNames);
 
-                if (!deviceFoundByGuid) return false;
+                if (numberOfDevicesFound == 0) return false;
 
                 for (int listIndex = 0; listIndex <= numberOfDevicesFound; listIndex++)
                 {
