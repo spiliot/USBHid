@@ -189,10 +189,7 @@ namespace UsbHid.USB.Classes
             finally
             {
                 // Free up the memory before finishing
-                if (preparsedData != IntPtr.Zero)
-                {
-                    Hid.HidD_FreePreparsedData(preparsedData);
-                }
+                Hid.HidD_FreePreparsedData(preparsedData);
             }
         }      
     }
