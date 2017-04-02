@@ -130,32 +130,28 @@ namespace UsbHid.USB.Classes
                     // to and from the device does not exceed the devices capabilities.
                     QueryDeviceCapabilities(ref deviceInformation);
 
-                    // Open the readHandle to the device
                     deviceInformation.ReadHandle = Kernel32.CreateFile(
                         deviceInformation.DevicePathName,
                         Constants.GenericRead,
                         Constants.FileShareRead | Constants.FileShareWrite,
                         IntPtr.Zero, Constants.OpenExisting,
                         Constants.FileFlagOverlapped,
-                        0);
-
-                    // Did we open the readHandle successfully?
-                    if (deviceInformation.ReadHandle.IsInvalid)
-                    {
-                        deviceInformation.ReadHandle.Close();
-                        return false;
-                    }
+                        0
+                    );
 
                     deviceInformation.WriteHandle = Kernel32.CreateFile(
                         deviceInformation.DevicePathName,
                         Constants.GenericWrite,
                         Constants.FileShareRead | Constants.FileShareWrite,
                         IntPtr.Zero,
-                        Constants.OpenExisting, 0, 0);
+                        Constants.OpenExisting,
+                        0,
+                        0
+                    );
 
-                    // Did we open the writeHandle successfully?
-                    if (deviceInformation.WriteHandle.IsInvalid)
+                    if (deviceInformation.ReadHandle.IsInvalid || deviceInformation.WriteHandle.IsInvalid)
                     {
+                        deviceInformation.ReadHandle.Close();
                         deviceInformation.WriteHandle.Close();
                         return false;
                     }
