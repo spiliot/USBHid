@@ -34,26 +34,28 @@ namespace UsbHid.USB.Classes
                     // the read and write handles required for USB communication
 
                     // First call is just to get the required buffer size for the real request
-                    SetupApi.SetupDiGetDeviceInterfaceDetail
-                        (deviceInfoSet,
-                            ref deviceInterfaceData,
-                            IntPtr.Zero,
-                            0,
-                            ref bufferSize,
-                            IntPtr.Zero);
+                    SetupApi.SetupDiGetDeviceInterfaceDetail(
+                        deviceInfoSet,
+                        ref deviceInterfaceData,
+                        IntPtr.Zero,
+                        0,
+                        ref bufferSize,
+                        IntPtr.Zero
+                    );
 
                     // Allocate some memory for the buffer
                     detailDataBuffer = Marshal.AllocHGlobal(bufferSize);
                     Marshal.WriteInt32(detailDataBuffer, (IntPtr.Size == 4) ? (4 + Marshal.SystemDefaultCharSize) : 8);
 
                     // Second call gets the detailed data buffer
-                    SetupApi.SetupDiGetDeviceInterfaceDetail
-                        (deviceInfoSet,
-                            ref deviceInterfaceData,
-                            detailDataBuffer,
-                            bufferSize,
-                            ref bufferSize,
-                            IntPtr.Zero);
+                    SetupApi.SetupDiGetDeviceInterfaceDetail(
+                        deviceInfoSet,
+                        ref deviceInterfaceData,
+                        detailDataBuffer,
+                        bufferSize,
+                        ref bufferSize,
+                        IntPtr.Zero
+                    );
 
                     // Skip over cbsize (4 bytes) to get the address of the devicePathName.
                     var pDevicePathName = new IntPtr(detailDataBuffer.ToInt32() + 4);
@@ -76,10 +78,7 @@ namespace UsbHid.USB.Classes
                 SetupApi.SetupDiDestroyDeviceInfoList(deviceInfoSet);
             }
 
-            if (listIndex == 0)
-            {
-                return false;
-            }
+            if (listIndex == 0) return false;
 
             numberOfDevicesFound = listIndex;
             return true;
