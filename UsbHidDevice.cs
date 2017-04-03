@@ -117,26 +117,19 @@ namespace UsbHid
 
         public void Disconnect()
         {
-            Debug.WriteLine("usbGenericHidCommunication:detachUsbDevice() -> Method called");
-
             if (_fsDeviceRead != null)
             {
                 _fsDeviceRead.Close();
             }
             
-            // Is a device currently attached?
             if (IsDeviceConnected)
             {
-                Debug.WriteLine("usbGenericHidCommunication:detachUsbDevice() -> Detaching device and closing file handles");
-                // Close the readHandle, writeHandle and hidHandle
-                if (!_deviceInformation.HidHandle.IsInvalid) _deviceInformation.HidHandle.Close();
-                if (!_deviceInformation.ReadHandle.IsInvalid) _deviceInformation.ReadHandle.Close();
-                if (!_deviceInformation.WriteHandle.IsInvalid) _deviceInformation.WriteHandle.Close();
+                _deviceInformation.HidHandle.Close();
+                _deviceInformation.ReadHandle.Close();
+                _deviceInformation.WriteHandle.Close();
 
-                // Set the device status to detached;
                 _deviceInformation.IsDeviceAttached = false;
             }
-            else Debug.WriteLine("usbGenericHidCommunication:detachUsbDevice() -> No device attached");
         }
 
         public bool SendMessage(IMesage message)
