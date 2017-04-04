@@ -9,15 +9,13 @@ namespace UsbHid.USB.Structures
         public delegate void ConnectedChangedDelegate(bool isConnected);
         public event ConnectedChangedDelegate ConnectedChanged;
 
-        public int TargetVendorId;                // Our target device's VID
-        public int TargetProductId;                // Our target device's PID
+        public UsbDescriptorStrings DescriptorStrings;
         public HiddAttributes Attributes;      // HID Attributes
         public HidpCaps Capabilities;          // HID Capabilities
         public SafeFileHandle ReadHandle;       // Read handle from the device
         public SafeFileHandle WriteHandle;      // Write handle to the device
         public SafeFileHandle HidHandle;        // Handle used for communicating via hid.dll
         public IntPtr DeviceNotificationHandle; // The device's notification handle
-
 
         // The device's path name
         private string _devicePathName;

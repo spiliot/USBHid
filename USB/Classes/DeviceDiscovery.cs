@@ -83,7 +83,7 @@ namespace UsbHid.USB.Classes
             return listOfDevicePathNames;
         }
 
-        public static bool FindTargetDevice(ref DeviceInformationStructure deviceInformation)
+        public static bool FindTargetDevice(ref DeviceInformationStructure deviceInformation, IUsbDeviceMatchable deviceMatchingRules)
         {
             deviceInformation.IsDeviceAttached = false;
 
@@ -108,11 +108,8 @@ namespace UsbHid.USB.Classes
                         continue;
                     }
 
-                    //  Do the VID and PID of the device match our target device?
-                    if ((deviceInformation.Attributes.VendorID != deviceInformation.TargetVendorId) ||
-                        (deviceInformation.Attributes.ProductID != deviceInformation.TargetProductId))
+                    if (!deviceMatchingRules.MatchVidPid(deviceInformation))
                     {
-                        // Wrong device, close the handle
                         deviceInformation.HidHandle.Close();
                         continue;
                     }
@@ -151,9 +148,29 @@ namespace UsbHid.USB.Classes
 
                     if (deviceInformation.ReadHandle.IsInvalid || deviceInformation.WriteHandle.IsInvalid)
                     {
+                        deviceInformation.HidHandle.Close();
                         deviceInformation.ReadHandle.Close();
                         deviceInformation.WriteHandle.Close();
                         return false;
+                    }
+
+                    var manufacturer = new System.Text.StringBuilder(64);
+                    Hid.HidD_GetProductString(deviceInformation.HidHandle, manufacturer, 64);
+
+                    var product = new System.Text.StringBuilder(64);
+                    Hid.HidD_GetProductString(deviceInformation.HidHandle, product, 64);
+
+                    var serial = new System.Text.StringBuilder(64);
+                    Hid.HidD_GetSerialNumberString(deviceInformation.HidHandle, serial, 64);
+
+                    deviceInformation.DescriptorStrings = new UsbDescriptorStrings(manufacturer.ToString(), product.ToString(), serial.ToString());
+
+                    if (!deviceMatchingRules.MatchExtendedInformation(deviceInformation))
+                    {
+                        deviceInformation.HidHandle.Close();
+                        deviceInformation.ReadHandle.Close();
+                        deviceInformation.WriteHandle.Close();
+                        continue;
                     }
 
                     // Device is now discovered and ready for use, update the status

@@ -13,6 +13,7 @@ namespace UsbHid
         #region Variables
 
         private DeviceInformationStructure _deviceInformation;
+        private IUsbDeviceMatchable _matchingRules;
         public string DevicePath { get { return _deviceInformation.DevicePathName; } }
         public bool IsDeviceConnected { get { return _deviceInformation.IsDeviceAttached; } }
         private readonly BackgroundWorker _worker;
@@ -35,12 +36,11 @@ namespace UsbHid
 
         #region Construction
 
-        public UsbHidDevice(int vendorId, int productId)
+        public UsbHidDevice(IUsbDeviceMatchable matchingRules)
         {
+            this._matchingRules = matchingRules;
             _worker = new BackgroundWorker();
             _worker.DoWork += WorkerDoWork;
-            _deviceInformation.TargetVendorId = vendorId;
-            _deviceInformation.TargetProductId = productId;
             _deviceInformation.ConnectedChanged += DeviceConnectedChanged;
             DeviceChangeNotifier.DeviceAttached += DeviceChangeNotifierDeviceAttached;
             DeviceChangeNotifier.DeviceDetached += DeviceChangeNotifierDeviceDetached;
@@ -100,7 +100,7 @@ namespace UsbHid
         private void DeviceChangeNotifierDeviceAttached()
         {
             if(IsDeviceConnected) Disconnect();
-            DeviceDiscovery.FindTargetDevice(ref _deviceInformation);
+            DeviceDiscovery.FindTargetDevice(ref _deviceInformation, _matchingRules);
         }
 
         #endregion
@@ -111,7 +111,7 @@ namespace UsbHid
 
         public bool Connect()
         {
-            DeviceDiscovery.FindTargetDevice(ref _deviceInformation);
+            DeviceDiscovery.FindTargetDevice(ref _deviceInformation, _matchingRules);
             return IsDeviceConnected;
         }
 
