@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
-using UsbHid.USB.Structures;
+using System.Text;
 
 namespace UsbHid.USB.Classes.DllWrappers
 {
@@ -45,5 +45,14 @@ namespace UsbHid.USB.Classes.DllWrappers
 
         [DllImport("hid.dll", SetLastError = true)]
         public static extern int HidP_GetValueCaps(Int32 reportType, byte[] valueCaps, ref Int32 valueCapsLength, IntPtr preparsedData);
-   }
+
+        [DllImport("hid.dll", SetLastError = true)]
+        public static extern bool HidD_GetManufacturerString(SafeFileHandle HidDeviceObject, [MarshalAs(UnmanagedType.LPWStr)]StringBuilder Buffer, UInt32 BufferLength);
+
+        [DllImport("hid.dll", SetLastError = true)]
+        public static extern bool HidD_GetProductString(SafeFileHandle HidDeviceObject, [MarshalAs(UnmanagedType.LPWStr)]StringBuilder Buffer, UInt32 BufferLength);
+
+        [DllImport("hid.dll", SetLastError = true)]
+        public static extern bool HidD_GetSerialNumberString(SafeFileHandle HidDeviceObject, [MarshalAs(UnmanagedType.LPWStr)]StringBuilder Buffer, UInt32 BufferLength);
+    }
 }
