@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 using System.Text;
+using UsbHid.USB.Structures;
 
 namespace UsbHid.USB.Classes.DllWrappers
 {
