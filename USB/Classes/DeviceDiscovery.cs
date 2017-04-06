@@ -194,11 +194,6 @@ namespace UsbHid.USB.Classes
                 Hid.HidD_GetPreparsedData(deviceInformation.HidHandle, ref preparsedData);
                 Hid.HidP_GetCaps(preparsedData, ref deviceInformation.Capabilities);
             }
-            catch (Exception)
-            {
-                // Something went badly wrong... this shouldn't happen, so we throw an exception
-                throw;
-            }
             finally
             {
                 // Free up the memory before finishing
