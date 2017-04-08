@@ -39,5 +39,8 @@ namespace UsbHid.USB.Classes
         internal const Int32 DeviceNotifyServiceHandle = 1;
         internal const Int32 DeviceNotifyWindowHandle = 0;
         internal const Int32 WmDevicechange = 0x219;
+
+        // Generic
+        internal const Int32 ERROR_NO_MORE_ITEMS = 259;
     }
 }

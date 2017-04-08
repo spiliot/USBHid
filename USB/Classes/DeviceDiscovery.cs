@@ -1,7 +1,9 @@
-﻿using System;
+﻿using Microsoft.Win32.SafeHandles;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using UsbHid.USB.Classes.DllWrappers;
 using UsbHid.USB.Structures;
 
@@ -9,34 +11,45 @@ namespace UsbHid.USB.Classes
 {
     public static class DeviceDiscovery
     {
-        public static List<string> FindHidDevices()
+        public static List<string> FindAllHidDevices()
         {
             var listOfDevicePathNames = new List<string>();
-            var bufferSize = 0;
             var detailDataBuffer = IntPtr.Zero;
             var deviceInfoSet = new IntPtr();
             int listIndex = 0;
             var deviceInterfaceData = new SpDeviceInterfaceData();
 
+            int lasterror = 0;
+
             // Get the required HID class GUID
             var systemHidGuid = new Guid();
             Hid.HidD_GetHidGuid(ref systemHidGuid);
 
+            deviceInfoSet = SetupDiGetClassDevs(ref systemHidGuid);
+            deviceInterfaceData.cbSize = Marshal.SizeOf(deviceInterfaceData);
+
             try
             {
-                // Here we populate a list of plugged-in devices matching our class GUID (DIGCF_PRESENT specifies that the list
-                // should only contain devices which are plugged in)
-                deviceInfoSet = SetupApi.SetupDiGetClassDevs(ref systemHidGuid, IntPtr.Zero, IntPtr.Zero, Constants.DigcfPresent | Constants.DigcfDeviceinterface);
-                deviceInterfaceData.cbSize = Marshal.SizeOf(deviceInterfaceData);
-
                 // Look through the retrieved list of class GUIDs looking for a match on our interface GUID
-                while (SetupApi.SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref systemHidGuid, listIndex, ref deviceInterfaceData))
+                // SetupDiEnumDeviceInterfaces will return false if it fails for any reason, including when no more items are left
+                // so we need to keep looping until the last thrown error is ERROR_NO_MORE_ITEMS
+                // Note: we post increment lastIndex so each subsequent call refers to a new device
+                while (SetupApi.SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref systemHidGuid, listIndex++, ref deviceInterfaceData) || (lasterror = Marshal.GetLastWin32Error()) != Constants.ERROR_NO_MORE_ITEMS)
                 {
+                    if (lasterror != 0)
+                    {
+                        // SetupDiEnumDeviceInterfaces failed and it wasn't ERROR_NO_MORE_ITEMS as this would have stopped the loop
+                        Debug.WriteLine("SetupDiEnumDeviceInterfaces failed for run {0} with error {1}", listIndex, lasterror);
+                        continue;
+                    }
+
+                    int bufferSize = 0;
+
                     // The target device has been found, now we need to retrieve the device path so we can open
                     // the read and write handles required for USB communication
 
-                    // First call is just to get the required buffer size for the real request
-                    SetupApi.SetupDiGetDeviceInterfaceDetail(
+                    // First call fails with ERROR_INSUFFICIENT_BUFFER and is used just to get the required buffer size for the real request
+                    var success = SetupApi.SetupDiGetDeviceInterfaceDetail(
                         deviceInfoSet,
                         ref deviceInterfaceData,
                         IntPtr.Zero,
@@ -50,7 +63,7 @@ namespace UsbHid.USB.Classes
                     Marshal.WriteInt32(detailDataBuffer, (IntPtr.Size == 4) ? (4 + Marshal.SystemDefaultCharSize) : 8);
 
                     // Second call gets the detailed data buffer
-                    SetupApi.SetupDiGetDeviceInterfaceDetail(
+                    success = SetupApi.SetupDiGetDeviceInterfaceDetail(
                         deviceInfoSet,
                         ref deviceInterfaceData,
                         detailDataBuffer,
@@ -59,13 +72,18 @@ namespace UsbHid.USB.Classes
                         IntPtr.Zero
                     );
 
+                    if (!success)
+                    {
+                        Debug.WriteLine("SetupDiGetDeviceInterfaceDetail failed for run {0} with error {1}", listIndex, Marshal.GetLastWin32Error());
+                        continue;
+                    }
+
+
                     // Skip over cbsize (4 bytes) to get the address of the devicePathName.
-                    var pDevicePathName = new IntPtr(detailDataBuffer.ToInt32() + 4);
+                    var pDevicePathName = IntPtr.Add(detailDataBuffer, 4);
 
                     // Get the String containing the devicePathName.
                     listOfDevicePathNames.Add(Marshal.PtrToStringAuto(pDevicePathName));
-
-                    listIndex++;
                 }
             }
             catch (Exception)
@@ -83,109 +101,158 @@ namespace UsbHid.USB.Classes
             return listOfDevicePathNames;
         }
 
-        public static bool FindTargetDevice(ref DeviceInformationStructure deviceInformation, IUsbDeviceMatchable deviceMatchingRules)
+        private static IntPtr SetupDiGetClassDevs(ref Guid guid)
         {
-            deviceInformation.IsDeviceAttached = false;
+            // Here we populate a list of plugged-in devices matching our class GUID (DIGCF_PRESENT specifies that the list
+            // should only contain devices which are plugged in)
 
-            // Get all the devices with the correct HID GUID
-            List<string> devicesFound = FindHidDevices();
-
-            if (devicesFound.Count == 0) return false;
-
-            foreach (string devicepath in devicesFound)
+            var returnedPointer = IntPtr.Zero;
+            try
             {
-                try
+                returnedPointer = SetupApi.SetupDiGetClassDevs(ref guid, IntPtr.Zero, IntPtr.Zero, Constants.DigcfPresent | Constants.DigcfDeviceinterface);
+            }
+            catch
+            {
+                Debug.WriteLine("SetupDiGetClassDevs failed with error code {0}", Marshal.GetLastWin32Error());
+            }
+            return returnedPointer;
+        }
+
+        public static List<KeyValuePair<string, UsbDescriptorStrings>> FindHidDevices(IUsbDeviceMatchable matchingRules)
+        {
+            var matchingDeviceInstancePaths = new List<KeyValuePair<string, UsbDescriptorStrings>>();
+
+            foreach (string deviceInstancePath in FindAllHidDevices())
+            {
+                if (!matchingRules.BasicMatch(deviceInstancePath))
                 {
-                    deviceInformation.HidHandle = Kernel32.CreateFile(devicepath, 0, Constants.FileShareRead | Constants.FileShareWrite, IntPtr.Zero, Constants.OpenExisting, 0, 0);
+                    continue;
+                }
 
-                    if (deviceInformation.HidHandle.IsInvalid) continue;
+                var deviceHandle = GetDeviceInformationHidHandle(deviceInstancePath);
+                UsbDescriptorStrings descriptorStrings;
 
-                    deviceInformation.Attributes.Size = Marshal.SizeOf(deviceInformation.Attributes);
+                if (deviceHandle.IsInvalid || !(matchingRules.DescriptorsMatch(descriptorStrings = GetDescriptionStrings(deviceHandle))))
+                {
+                    deviceHandle.Close();
+                    continue;
+                }
 
-                    if (!Hid.HidD_GetAttributes(deviceInformation.HidHandle, ref deviceInformation.Attributes))
-                    {
-                        deviceInformation.HidHandle.Close();
-                        continue;
-                    }
+                matchingDeviceInstancePaths.Add(new KeyValuePair<string, UsbDescriptorStrings>(deviceInstancePath, descriptorStrings));
+            }
 
-                    if (!deviceMatchingRules.MatchVidPid(deviceInformation))
-                    {
-                        deviceInformation.HidHandle.Close();
-                        continue;
-                    }
+            return matchingDeviceInstancePaths;
+        }
 
-                    // Matching device found
+        private static UsbDescriptorStrings GetDescriptionStrings(SafeFileHandle deviceHadle)
+        {
+            const int stringSizelimit = 64; //TODO: While this should cover almost all cases it is hardcoded which is bad
+            UsbDescriptorStrings descriptorStrings;
 
-                    // Store the device's pathname in the device information
-                    deviceInformation.DevicePathName = devicepath;
+            var manufacturer = new StringBuilder(stringSizelimit);
+            var product = new StringBuilder(stringSizelimit);
+            var serial = new StringBuilder(stringSizelimit);
 
-                    // We found a matching device then we need discover more details about the attached device
-                    // and then open read and write handles to the device to allow communication
+            try
+            {
+                Hid.HidD_GetManufacturerString(deviceHadle, manufacturer, stringSizelimit);
+                Hid.HidD_GetProductString(deviceHadle, product, stringSizelimit);
+                Hid.HidD_GetSerialNumberString(deviceHadle, serial, stringSizelimit);
+            }
+            finally
+            {
+                descriptorStrings = new UsbDescriptorStrings(manufacturer.ToString(), product.ToString(), serial.ToString());
+            }
+            return descriptorStrings;
+        }
 
-                    // Query the HID device's capabilities (primarily we are only really interested in the 
-                    // input and output report byte lengths as this allows us to validate information sent
-                    // to and from the device does not exceed the devices capabilities.
-                    QueryDeviceCapabilities(ref deviceInformation);
+        private static bool GetAttributes(ref DeviceInformationStructure deviceInformation)
+        {
+            try
+            {
+                deviceInformation.Attributes.Size = Marshal.SizeOf(deviceInformation.Attributes);
 
-                    deviceInformation.ReadHandle = Kernel32.CreateFile(
-                        deviceInformation.DevicePathName,
-                        Constants.GenericRead,
-                        Constants.FileShareRead | Constants.FileShareWrite,
-                        IntPtr.Zero, Constants.OpenExisting,
-                        Constants.FileFlagOverlapped,
-                        0
-                    );
-
-                    deviceInformation.WriteHandle = Kernel32.CreateFile(
-                        deviceInformation.DevicePathName,
-                        Constants.GenericWrite,
-                        Constants.FileShareRead | Constants.FileShareWrite,
-                        IntPtr.Zero,
-                        Constants.OpenExisting,
-                        0,
-                        0
-                    );
-
-                    if (deviceInformation.ReadHandle.IsInvalid || deviceInformation.WriteHandle.IsInvalid)
-                    {
-                        deviceInformation.HidHandle.Close();
-                        deviceInformation.ReadHandle.Close();
-                        deviceInformation.WriteHandle.Close();
-                        return false;
-                    }
-
-                    var manufacturer = new System.Text.StringBuilder(64);
-                    Hid.HidD_GetProductString(deviceInformation.HidHandle, manufacturer, 64);
-
-                    var product = new System.Text.StringBuilder(64);
-                    Hid.HidD_GetProductString(deviceInformation.HidHandle, product, 64);
-
-                    var serial = new System.Text.StringBuilder(64);
-                    Hid.HidD_GetSerialNumberString(deviceInformation.HidHandle, serial, 64);
-
-                    deviceInformation.DescriptorStrings = new UsbDescriptorStrings(manufacturer.ToString(), product.ToString(), serial.ToString());
-
-                    if (!deviceMatchingRules.MatchExtendedInformation(deviceInformation))
-                    {
-                        deviceInformation.HidHandle.Close();
-                        deviceInformation.ReadHandle.Close();
-                        deviceInformation.WriteHandle.Close();
-                        continue;
-                    }
-
-                    // Device is now discovered and ready for use, update the status
-                    deviceInformation.IsDeviceAttached = true;
+                if (Hid.HidD_GetAttributes(deviceInformation.HidHandle, ref deviceInformation.Attributes))
+                {
                     return true;
                 }
-                catch (Exception)
-                {
-                    return false;
-                }
+            }
+            catch
+            {
+                Debug.WriteLine("GetAttributes failed");
+                return false;
             }
             return false;
         }
 
-        public static void QueryDeviceCapabilities(ref DeviceInformationStructure deviceInformation)
+        public static bool FindTargetDevice(ref DeviceInformationStructure deviceInformation)
+        {
+            deviceInformation.HidHandle = GetDeviceInformationHidHandle(deviceInformation.DevicePathName);
+            deviceInformation.ReadHandle = GetDeviceInformationReadHandle(deviceInformation.DevicePathName);
+            deviceInformation.WriteHandle = GetDeviceInformationWriteHandle(deviceInformation.DevicePathName);
+
+            if (deviceInformation.HidHandle.IsInvalid || deviceInformation.ReadHandle.IsInvalid || deviceInformation.WriteHandle.IsInvalid)
+            {
+                return false;
+            }
+
+            if (!GetAttributes(ref deviceInformation)) return false;
+
+            deviceInformation.DescriptorStrings = GetDescriptionStrings(deviceInformation.HidHandle);
+
+            if (!QueryDeviceCapabilities(ref deviceInformation)) return false;
+
+            deviceInformation.IsDeviceAttached = true;
+
+            return true;
+        }
+
+        private static SafeFileHandle GetDeviceInformationHidHandle(string deviceInstancePath)
+        {
+            SafeFileHandle deviceHandle = null;
+            try
+            {
+                deviceHandle = Kernel32.CreateFile(deviceInstancePath, 0, Constants.FileShareRead | Constants.FileShareWrite, IntPtr.Zero, Constants.OpenExisting, 0, 0);
+            }
+            catch
+            {
+                Debug.WriteLine("GetDeviceInformationHidHandle failed for {0}", deviceInstancePath);
+            }
+
+            return deviceHandle;
+        }
+
+        private static SafeFileHandle GetDeviceInformationReadHandle(string deviceInstancePath)
+        {
+            SafeFileHandle deviceHandle = null;
+            try
+            {
+                deviceHandle = Kernel32.CreateFile(deviceInstancePath, Constants.GenericRead, Constants.FileShareRead | Constants.FileShareWrite, IntPtr.Zero, Constants.OpenExisting, Constants.FileFlagOverlapped, 0);
+            }
+            catch
+            {
+                Debug.WriteLine("GetDeviceInformationReadHandle failed for {0}", deviceInstancePath);
+            }
+
+            return deviceHandle;
+        }
+
+        private static SafeFileHandle GetDeviceInformationWriteHandle(string deviceInstancePath)
+        {
+            SafeFileHandle deviceHandle = null;
+            try
+            {
+                deviceHandle = Kernel32.CreateFile(deviceInstancePath, Constants.GenericWrite, Constants.FileShareRead | Constants.FileShareWrite, IntPtr.Zero, Constants.OpenExisting, 0, 0);
+            }
+            catch
+            {
+                Debug.WriteLine("GetDeviceInformationWriteHandle failed for {0}", deviceInstancePath);
+            }
+
+            return deviceHandle;
+        }
+
+        public static bool QueryDeviceCapabilities(ref DeviceInformationStructure deviceInformation)
         {
             var preparsedData = new IntPtr();
 
@@ -194,11 +261,17 @@ namespace UsbHid.USB.Classes
                 Hid.HidD_GetPreparsedData(deviceInformation.HidHandle, ref preparsedData);
                 Hid.HidP_GetCaps(preparsedData, ref deviceInformation.Capabilities);
             }
+            catch
+            {
+                Debug.WriteLine("QueryDeviceCapabilities failed with error {0}", Marshal.GetLastWin32Error());
+                return false;
+            }
             finally
             {
                 // Free up the memory before finishing
                 Hid.HidD_FreePreparsedData(preparsedData);
             }
+            return true;
         }      
     }
 }

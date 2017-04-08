@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using UsbHid.USB.Classes;
 using UsbHid.USB.Structures;
 
 namespace UsbHid
@@ -17,15 +18,14 @@ namespace UsbHid
             this.Pid = Pid;
         }
 
-        public bool MatchVidPid(DeviceInformationStructure device)
+        public bool BasicMatch(string deviceInstancePath)
         {
-            bool matchesVid = (device.Attributes.VendorID == Vid);
-            bool matchesPid = (device.Attributes.ProductID == Pid);
-
-            return (matchesVid && matchesPid);
+            if (deviceInstancePath.IndexOf("#vid_" + Vid.ToString("x4") + "&") == -1) return false;
+            if (deviceInstancePath.IndexOf("&pid_" + Pid.ToString("x4") + "#") == -1) return false;
+            return true;
         }
 
-        public virtual bool MatchExtendedInformation(DeviceInformationStructure device)
+        public virtual bool DescriptorsMatch(UsbDescriptorStrings descriptorStrings)
         {
             return true;
         }

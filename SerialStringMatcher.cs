@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using UsbHid.USB.Classes;
 using UsbHid.USB.Structures;
 
 namespace UsbHid
@@ -10,14 +11,14 @@ namespace UsbHid
     {
         private readonly string SerialString;
 
-        SerialStringMatcher(string SerialToMatch, uint Vid = 0x16c0, uint Pid = 0x27d9) : base(Vid, Pid)
+        public SerialStringMatcher(string SerialToMatch, uint Vid = 0x16c0, uint Pid = 0x27d9) : base(Vid, Pid)
         {
             this.SerialString = SerialToMatch;
         }
 
-        override public bool MatchExtendedInformation(DeviceInformationStructure device)
+        override public bool DescriptorsMatch(UsbDescriptorStrings descriptorStrings)
         {
-            return device.DescriptorStrings.Serial.StartsWith(SerialString);
+            return descriptorStrings.Serial.StartsWith(SerialString);
         }
     }
 }
