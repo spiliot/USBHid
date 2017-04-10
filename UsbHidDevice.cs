@@ -38,10 +38,14 @@ namespace UsbHid
         public UsbHidDevice(string devicePath)
         {
             _deviceInformation.DevicePathName = devicePath;
-            DeviceDiscovery.FindTargetDevice(ref _deviceInformation);
 
             _worker = new BackgroundWorker();
             _worker.DoWork += WorkerDoWork;
+            if (DeviceDiscovery.FindTargetDevice(ref _deviceInformation))
+            {
+                _worker.RunWorkerAsync();
+            }
+
             _deviceInformation.ConnectedChanged += DeviceConnectedChanged;
             DeviceChangeNotifier.DeviceAttached += DeviceChangeNotifierDeviceAttached;
             DeviceChangeNotifier.DeviceDetached += DeviceChangeNotifierDeviceDetached;
