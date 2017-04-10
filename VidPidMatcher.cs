@@ -7,7 +7,7 @@ using UsbHid.USB.Structures;
 
 namespace UsbHid
 {
-    class VidPidMatcher : IUsbDeviceMatchable
+    public class VidPidMatcher : IUsbDeviceMatchable
     {
         public readonly uint Vid;
         public readonly uint Pid;
